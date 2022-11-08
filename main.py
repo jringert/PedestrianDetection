@@ -29,34 +29,52 @@ def id_class_name(class_id, classes):
 # Loading model
 model = cv2.dnn.readNetFromTensorflow('models/frozen_inference_graph.pb',
                                       'models/ssd_mobilenet_v2_coco_2018_03_29.pbtxt')
-image = cv2.imread("image.jpeg")
 
-image_height, image_width, _ = image.shape
+# First we need to create the object of VideoCapture class
+cap = cv2.VideoCapture(0)
+cap.set(5,10)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
-output = model.forward()
-# print(output[0,0,:,:].shape)
+# Check the video initialization is proper or not
+status = cap.isOpened()
+if status==False:
+    print("Error while reading the video..!")
+    
+# If everything is fine then go for frame by frame loading
+while(True):
+    # Read the video frame by frame
+    retVal, frame = cap.read()
+
+    image_height, image_width, _ = frame.shape
+
+    #------- Code for inference part ----------
+    model.setInput(cv2.dnn.blobFromImage(frame, size=(300, 300), swapRB=True))
+    output = model.forward()
+    # Let us grab the top5 probability indices
+    for detection in output[0, 0, :, :]:
+        confidence = detection[2]
+        if confidence > .5:
+            class_id = detection[1]
+            class_name=id_class_name(class_id,classNames)
+            print(str(str(class_id) + " " + str(detection[2])  + " " + class_name))
+            box_x = detection[3] * image_width
+            box_y = detection[4] * image_height
+            box_width = detection[5] * image_width
+            box_height = detection[6] * image_height
+            cv2.rectangle(frame, (int(box_x), int(box_y)), (int(box_width), int(box_height)), (23, 230, 210), thickness=3)
+            cv2.putText(frame,class_name ,(int(box_x), int(box_y+.05*image_height)),cv2.FONT_HERSHEY_SIMPLEX,(.005*image_width),(0, 0, 255), thickness=5)
 
 
-for detection in output[0, 0, :, :]:
-    confidence = detection[2]
-    if confidence > .5:
-        class_id = detection[1]
-        class_name=id_class_name(class_id,classNames)
-        print(str(str(class_id) + " " + str(detection[2])  + " " + class_name))
-        box_x = detection[3] * image_width
-        box_y = detection[4] * image_height
-        box_width = detection[5] * image_width
-        box_height = detection[6] * image_height
-        cv2.rectangle(image, (int(box_x), int(box_y)), (int(box_width), int(box_height)), (23, 230, 210), thickness=1)
-        cv2.putText(image,class_name ,(int(box_x), int(box_y+.05*image_height)),cv2.FONT_HERSHEY_SIMPLEX,(.005*image_width),(0, 0, 255))
-
-
-
-
-
-cv2.imshow('image', image)
-# cv2.imwrite("image_box_text.jpg",image)
-
-cv2.waitKey(0)
+    # if retVal of above function call is true then show the frame
+    if(retVal):
+        cv2.namedWindow("Video", cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        cv2.imshow("Video",frame)
+        
+        # In order to control the video display
+        if cv2.waitKey(25) & 0xFF == ord('q'):
+            break
+    else:
+        break
+cap.release()
 cv2.destroyAllWindows()
